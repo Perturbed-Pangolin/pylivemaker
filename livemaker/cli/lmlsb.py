@@ -23,6 +23,7 @@ import re
 import shutil
 import sys
 import csv
+import gspread
 from pathlib import Path
 
 import click
@@ -1263,6 +1264,52 @@ def insertcsv(lsb_file, csv_file, encoding, no_backup, verbose):
         csv_reader = csv.reader(csvfile, delimiter=",", quotechar='"')
         for row in csv_reader:
             csv_data.append(row)
+
+    translated, failed, untranslated = _patch_csv_text(lsb, lsb_file, csv_data, verbose)
+    print(f"  Translated {translated} lines")
+    print(f"  Failed to translate {failed} lines")
+    print(f"  Ignored {untranslated} untranslated lines")
+    if not translated:
+        return
+
+    if not no_backup:
+        print("Backing up original LSB.")
+        shutil.copyfile(str(lsb_file), "{}.bak".format(str(lsb_file)))
+    try:
+        new_lsb_data = lsb.to_lsb()
+        with open(lsb_file, "wb") as f:
+            f.write(new_lsb_data)
+        print("Wrote new LSB.")
+    except LiveMakerException as e:
+        sys.exit("Could not generate new LSB file: {}".format(e))
+
+
+@lmlsb.command()
+@click.argument("lsb_file", required=True, type=click.Path(exists=True, dir_okay="False"))
+@click.argument("spreadsheet_key", required=True, type=str)
+@click.argument("credentials_file", required=True, type=click.Path(exists=False, dir_okay="False"))
+@click.option("--no-backup", is_flag=True, default=False, help="Do not generate backup of original lsb file.")
+@click.option("-v", "--verbose", is_flag=True, default=False)
+def insertgsheets(lsb_file, spreadsheet_key, credentials_file, no_backup, verbose):
+    lsb_file = Path(lsb_file)
+    print("Patching {} ...".format(lsb_file))
+
+    try:
+        pylm = PylmProject(lsb_file)
+        call_name = pylm.call_name(lsb_file)
+    except LiveMakerException:
+        pylm = None
+        call_name = None
+
+    try:
+        with open(lsb_file, "rb") as f:
+            lsb = LMScript.from_file(f, call_name=call_name, pylm=pylm)
+    except BadLsbError as e:
+        sys.exit("Failed to parse file: {}".format(e))
+
+    client = gspread.service_account(filename=credentials_file)
+    sheet = client.open_by_key(spreadsheet_key).worksheets()[0]
+    csv_data = sheet.get(f"A2:E{sheet.row_count}")
 
     translated, failed, untranslated = _patch_csv_text(lsb, lsb_file, csv_data, verbose)
     print(f"  Translated {translated} lines")
