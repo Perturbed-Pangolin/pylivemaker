@@ -1739,10 +1739,6 @@ class LNSText:
                     start = i
                 cur_block.append(str(w.ch))
                 block_break = False
-            elif w.type == TWdType.TWdOpeReturn:
-                if cur_block and w.break_type == BreakType.LINE:
-                    cur_block.append("\n")
-                    block_break = False
             elif w.type == TWdType.TWdOpeEvent:
                 if w.name == "NAMELABEL":
                     if w.is_system:
