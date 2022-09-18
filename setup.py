@@ -21,6 +21,7 @@ requirements = [
     "numpy>=1.16",
     "Pillow>=7.1.2",
     "pydot>=1.4.1",
+    "gspread>=5.5.0",
 ]
 
 setup_requirements = [
